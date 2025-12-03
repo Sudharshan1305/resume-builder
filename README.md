@@ -57,26 +57,11 @@ resume-builder/
 ├── .gitignore
 └── README.md
 
-🌐 API Endpoints
-Method	Endpoint	Description
-POST	/api/resumes/create	Create a new resume
-PUT	/api/resumes/update	Update an existing resume
-GET	/api/resumes/get/:id	Get a resume by ID
-GET	/api/resumes/public/:id	Get public resume preview
-🔧 Environment Variables
+
 
 Create .env inside server/:
-
 MONGODB_URI=your_mongo_connection
 JWT_SECRET=your_jwt_secret
 IMAGEKIT_PUBLIC_KEY=your_imagekit_public_key
 IMAGEKIT_PRIVATE_KEY=your_imagekit_private_key
 OPENAI_API_KEY=your_openai_api_key
-
-📱 Local Development URLs
-
-Backend → http://localhost:5000
-
-Frontend → http://localhost:3000
-
-Dashboard → http://localhost:3000/app
