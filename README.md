@@ -60,8 +60,13 @@ resume-builder/
 
 
 Create .env inside server/:
+
 MONGODB_URI=your_mongo_connection
+
 JWT_SECRET=your_jwt_secret
+
 IMAGEKIT_PUBLIC_KEY=your_imagekit_public_key
+
 IMAGEKIT_PRIVATE_KEY=your_imagekit_private_key
+
 OPENAI_API_KEY=your_openai_api_key
