@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Production builds
+build/
+dist/
+client/build/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Uploads and runtime files
+server/uploads/*
+!server/uploads/.gitkeep
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# MongoDB
+mongod.lock
+
+# Docker
+docker-compose.override.yml
