@@ -10,4 +10,4 @@ spec:
   - protocol: TCP
     port: 3000        # Service port
     targetPort: 3000  # Container port
-    nodePort: 30080   # External access port (30000-32767 range)
+    nodePort: 30100   # External access port (30000-32767 range)
