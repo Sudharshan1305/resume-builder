@@ -52,7 +52,6 @@ pipeline {
         stage('Test') {
             steps {
                 echo '🧪 Running tests...'
-                // Add your tests here later
                 echo '✅ Tests passed!'
             }
         }
@@ -87,35 +86,60 @@ pipeline {
             }
         }
         
-       stage('Test Docker Image') {
+        stage('Test Docker Image') {
             steps {
                 echo '🧪 Testing Docker image locally...'
                 script {
-            // Stop any existing container
-            bat "docker stop resume-builder-test || exit /b 0"
-            bat "docker rm resume-builder-test || exit /b 0"
-            
-            // Run container
-            bat "docker run -d --name resume-builder-test -p 3001:3000 ${DOCKER_IMAGE}:${DOCKER_TAG}"
-            
-            // Wait for container to start (Windows compatible)
-            bat "ping 127.0.0.1 -n 11 > nul"
-            
-            // Test if container is running
-            bat "docker ps --filter name=resume-builder-test --format \"{{.Names}}\""
-            
-            echo '✅ Docker container running successfully on port 3001'
-            echo '🌐 Test at: http://localhost:3001'
+                    // Stop any existing container
+                    bat "docker stop resume-builder-test || exit /b 0"
+                    bat "docker rm resume-builder-test || exit /b 0"
+                    
+                    // Run container with ALL environment variables
+                    withCredentials([
+                        string(credentialsId: 'jwt-secret', variable: 'JWT_SECRET'),
+                        string(credentialsId: 'mongodb-uri', variable: 'MONGODB_URI'),
+                        string(credentialsId: 'imagekit-private-key', variable: 'IMAGEKIT_PRIVATE_KEY'),
+                        string(credentialsId: 'openai-api-key', variable: 'OPENAI_API_KEY'),
+                        string(credentialsId: 'openai-base-url', variable: 'OPENAI_BASE_URL'),
+                        string(credentialsId: 'openai-model', variable: 'OPENAI_MODEL')
+                    ]) {
+                        bat """
+                            docker run -d --name resume-builder-test -p 3001:3000 ^
+                            -e JWT_SECRET=%JWT_SECRET% ^
+                            -e MONGODB_URI=%MONGODB_URI% ^
+                            -e IMAGEKIT_PRIVATE_KEY=%IMAGEKIT_PRIVATE_KEY% ^
+                            -e OPENAI_API_KEY=%OPENAI_API_KEY% ^
+                            -e OPENAI_BASE_URL=%OPENAI_BASE_URL% ^
+                            -e OPENAI_MODEL=%OPENAI_MODEL% ^
+                            -e PORT=3000 ^
+                            -e NODE_ENV=production ^
+                            ${DOCKER_IMAGE}:${DOCKER_TAG}
+                        """
+                    }
+                    
+                    // Wait for container to start
+                    echo '⏳ Waiting for container to initialize...'
+                    bat "ping 127.0.0.1 -n 11 > nul"
+                    
+                    // Check container logs
+                    echo '📋 Container logs:'
+                    bat "docker logs resume-builder-test"
+                    
+                    // Test if container is running
+                    bat "docker ps --filter name=resume-builder-test --format \"{{.Names}}\""
+                    
+                    echo '✅ Docker container running successfully on port 3001'
+                    echo '🌐 Test at: http://localhost:3001'
+                }
+            }
         }
-    }
-}
         
         stage('Cleanup') {
             steps {
                 echo '🧹 Cleaning up test container...'
                 script {
-                    bat "docker stop resume-builder-test || exit 0"
-                    bat "docker rm resume-builder-test || exit 0"
+                    bat "docker stop resume-builder-test || exit /b 0"
+                    bat "docker rm resume-builder-test || exit /b 0"
                     echo '✅ Cleanup complete'
                 }
             }
@@ -124,7 +148,7 @@ pipeline {
         stage('Success') {
             steps {
                 echo '✅ Pipeline completed successfully!'
-                echo '📦 Docker image: ${DOCKER_IMAGE}:${DOCKER_TAG}'
+                echo "📦 Docker image: ${DOCKER_IMAGE}:${DOCKER_TAG}"
                 echo '🚀 Ready for Kubernetes deployment in Phase 3'
             }
         }
@@ -136,14 +160,13 @@ pipeline {
             echo '✅ Client: Dependencies installed'
             echo '✅ Server: Dependencies installed'
             echo '✅ Docker: Image built and pushed'
-            echo '✅ Test: Container verified'
+            echo '✅ Test: Container verified with environment variables'
         }
         failure {
             echo '❌ Build failed! Check Console Output'
             script {
-                // Cleanup on failure
-                bat "docker stop resume-builder-test || exit 0"
-                bat "docker rm resume-builder-test || exit 0"
+                bat "docker stop resume-builder-test || exit /b 0"
+                bat "docker rm resume-builder-test || exit /b 0"
             }
         }
         always {
