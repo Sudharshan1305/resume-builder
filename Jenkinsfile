@@ -87,28 +87,28 @@ pipeline {
             }
         }
         
-        stage('Test Docker Image') {
+       stage('Test Docker Image') {
             steps {
                 echo '🧪 Testing Docker image locally...'
                 script {
-                    // Stop any existing container
-                    bat "docker stop resume-builder-test || exit 0"
-                    bat "docker rm resume-builder-test || exit 0"
-                    
-                    // Run container
-                    bat "docker run -d --name resume-builder-test -p 3001:3000 ${DOCKER_IMAGE}:${DOCKER_TAG}"
-                    
-                    // Wait for container to start
-                    bat "timeout 10"
-                    
-                    // Test if container is running
-                    bat "docker ps | findstr resume-builder-test"
-                    
-                    echo '✅ Docker container running successfully on port 3001'
-                    echo '🌐 Test at: http://localhost:3001'
-                }
-            }
+            // Stop any existing container
+            bat "docker stop resume-builder-test || exit /b 0"
+            bat "docker rm resume-builder-test || exit /b 0"
+            
+            // Run container
+            bat "docker run -d --name resume-builder-test -p 3001:3000 ${DOCKER_IMAGE}:${DOCKER_TAG}"
+            
+            // Wait for container to start (Windows compatible)
+            bat "ping 127.0.0.1 -n 11 > nul"
+            
+            // Test if container is running
+            bat "docker ps --filter name=resume-builder-test --format \"{{.Names}}\""
+            
+            echo '✅ Docker container running successfully on port 3001'
+            echo '🌐 Test at: http://localhost:3001'
         }
+    }
+}
         
         stage('Cleanup') {
             steps {
