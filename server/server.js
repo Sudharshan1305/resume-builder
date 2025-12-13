@@ -51,7 +51,6 @@
 //   console.log(`Server is running on port ${PORT}`);
 // });
 
-
 import express from "express";
 import cors from "cors";
 import "dotenv/config";
@@ -81,8 +80,9 @@ try {
 app.use(express.json());
 app.use(cors());
 
-// ---- HEALTH CHECK ENDPOINTS (MUST BE BEFORE CATCH-ALL) ----
+// ---- HEALTH CHECK ENDPOINTS (MUST BE FIRST!) ----
 app.get("/health", (req, res) => {
+  console.log("Health check called");
   res.status(200).json({
     status: "healthy",
     version: APP_VERSION,
@@ -92,11 +92,13 @@ app.get("/health", (req, res) => {
 });
 
 app.get("/ready", (req, res) => {
+  console.log("Ready check called");
   // Check if MongoDB is connected
   if (mongoose.connection.readyState === 1) {
     res.status(200).json({
       status: "ready",
-      database: "connected"
+      database: "connected",
+      timestamp: new Date().toISOString()
     });
   } else {
     res.status(503).json({
@@ -119,9 +121,10 @@ const __dirname = path.dirname(__filename);
 // serve built frontend
 app.use(express.static(path.join(__dirname, "public")));
 
-// fallback to index.html for SPA routing
-// IMPORTANT: This MUST be LAST - it's a catch-all route
-app.get(/.*/, (req, res) => {
+// IMPORTANT: Catch-all route MUST BE LAST
+// This handles SPA routing
+app.get("*", (req, res) => {
+  // Don't catch /health or /ready (they're already handled above)
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
