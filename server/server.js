@@ -123,9 +123,10 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // IMPORTANT: Catch-all route MUST BE LAST
 // This handles SPA routing - serve index.html for all non-API routes
-app.get("*", (req, res) => {
+app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
+
 
 // ---- START SERVER ----
 app.listen(PORT, "0.0.0.0", () => {
