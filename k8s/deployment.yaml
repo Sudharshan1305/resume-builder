@@ -5,7 +5,7 @@ metadata:
   labels:
     app: resume-builder
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: resume-builder
@@ -16,15 +16,11 @@ spec:
     spec:
       containers:
       - name: resume-builder
-        image: sudharshan1305/resume-builder:latest  # CHANGED
-        imagePullPolicy: Always  # CHANGED - always pull latest from Docker Hub
+        image: sudharshan1305/resume-builder:8
+        imagePullPolicy: IfNotPresent
+
         ports:
         - containerPort: 3000
-        
-        # Volume mount for persistent storage
-        volumeMounts:
-        - name: uploads-storage
-          mountPath: /app/server/uploads
         
         envFrom:
         - secretRef:
@@ -32,34 +28,25 @@ spec:
         - configMapRef:
             name: resume-builder-config
         
-        # Liveness Probe - restart if unhealthy
+        # Liveness Probe - MORE TIME
         livenessProbe:
           httpGet:
             path: /health
             port: 3000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
+          initialDelaySeconds: 60  # Changed from 40 to 60
+          periodSeconds: 20        # Changed from 15 to 20
+          timeoutSeconds: 10       # Changed from 5 to 10
+          failureThreshold: 5      # Changed from 3 to 5
         
-        # Readiness Probe - remove from service if not ready
+        # Readiness Probe - MORE TIME
         readinessProbe:
           httpGet:
             path: /ready
             port: 3000
-          initialDelaySeconds: 10
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 2
-        
-        # Startup Probe - give app time to start
-        startupProbe:
-          httpGet:
-            path: /health
-            port: 3000
-          initialDelaySeconds: 0
-          periodSeconds: 5
-          failureThreshold: 30
+          initialDelaySeconds: 30  # Changed from 15 to 30
+          periodSeconds: 15        # Changed from 10 to 15
+          timeoutSeconds: 5        # Changed from 3 to 5
+          failureThreshold: 3      # Changed from 2 to 3
         
         resources:
           requests:
@@ -68,9 +55,3 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "500m"
-      
-      # Define volumes
-      volumes:
-      - name: uploads-storage
-        persistentVolumeClaim:
-          claimName: resume-uploads-pvc

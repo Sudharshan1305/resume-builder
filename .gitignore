@@ -50,3 +50,7 @@ mongod.lock
 docker-compose.override.yml
 
 echo "k8s/secret.yaml" >> .gitignore
+
+k8s/secret.yaml
+k8s/secrets.yaml
+**/secret*.yaml
