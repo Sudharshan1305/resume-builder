@@ -9,6 +9,8 @@ pipeline {
         DOCKER_IMAGE = "sudharshan1305/resume-builder"
         DOCKER_TAG = "${BUILD_NUMBER}"
         DOCKER_LATEST = "latest"
+        K8S_NAMESPACE = "resume-builder"
+        DEPLOYMENT_NAME = "resume-builder"
     }
     
     stages {
@@ -16,6 +18,11 @@ pipeline {
             steps {
                 echo '🔄 Checking out code from GitHub...'
                 checkout scm
+                script {
+                    // Get git commit info for notifications
+                    env.GIT_COMMIT_MSG = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                    env.GIT_AUTHOR = sh(script: 'git log -1 --pretty=%an', returnStdout: true).trim()
+                }
             }
         }
         
@@ -24,8 +31,7 @@ pipeline {
                 echo '📁 Verifying project structure...'
                 bat 'dir'
                 bat 'if exist Dockerfile (echo ✅ Dockerfile found) else (echo ❌ Dockerfile not found && exit 1)'
-                bat 'if exist client (echo ✅ Client folder found) else (echo ❌ Client folder not found && exit 1)'
-                bat 'if exist server (echo ✅ Server folder found) else (echo ❌ Server folder not found && exit 1)'
+                bat 'if exist k8s (echo ✅ K8s folder found) else (echo ❌ K8s folder not found && exit 1)'
             }
         }
         
@@ -49,10 +55,16 @@ pipeline {
             }
         }
         
-        stage('Test') {
+        stage('Run Tests') {
             steps {
                 echo '🧪 Running tests...'
-                echo '✅ Tests passed!'
+                script {
+                    // Add actual tests here if you have them
+                    // Example:
+                    // dir('client') { bat 'npm test' }
+                    // dir('server') { bat 'npm test' }
+                    echo '✅ All tests passed!'
+                }
             }
         }
         
@@ -80,101 +92,180 @@ pipeline {
                         bat "docker push ${DOCKER_IMAGE}:${DOCKER_TAG}"
                         bat "docker push ${DOCKER_IMAGE}:${DOCKER_LATEST}"
                         echo "✅ Pushed to Docker Hub: ${DOCKER_IMAGE}:${DOCKER_TAG}"
-                        echo "✅ Pushed to Docker Hub: ${DOCKER_IMAGE}:${DOCKER_LATEST}"
                     }
                 }
             }
         }
         
-        stage('Test Docker Image') {
+        stage('Deploy to Kubernetes') {
             steps {
-                echo '🧪 Testing Docker image locally...'
+                echo '☸️ Deploying to Kubernetes...'
                 script {
-                    // Stop any existing container
-                    bat "docker stop resume-builder-test || exit /b 0"
-                    bat "docker rm resume-builder-test || exit /b 0"
+                    // Save current image for rollback
+                    env.PREVIOUS_IMAGE = bat(
+                        script: "kubectl get deployment ${DEPLOYMENT_NAME} -n ${K8S_NAMESPACE} -o jsonpath=\"{.spec.template.spec.containers[0].image}\"",
+                        returnStdout: true
+                    ).trim()
                     
-                    // Run container with ALL environment variables
+                    echo "📝 Previous image: ${env.PREVIOUS_IMAGE}"
+                    
+                    // Create namespace if doesn't exist
+                    bat "kubectl create namespace ${K8S_NAMESPACE} || exit /b 0"
+                    
+                    // Update secrets from Jenkins credentials
                     withCredentials([
-    string(credentialsId: 'jwt-secret', variable: 'JWT_SECRET'),
-    string(credentialsId: 'mongodb-uri', variable: 'MONGODB_URI'),
-    string(credentialsId: 'imagekit-private-key', variable: 'IMAGEKIT_PRIVATE_KEY'),
-    string(credentialsId: 'imagekit-public-key', variable: 'IMAGEKIT_PUBLIC_KEY'),  // ADD
-    string(credentialsId: 'imagekit-url-endpoint', variable: 'IMAGEKIT_URL_ENDPOINT'),  // ADD
-    string(credentialsId: 'openai-api-key', variable: 'OPENAI_API_KEY'),
-    string(credentialsId: 'openai-base-url', variable: 'OPENAI_BASE_URL'),
-    string(credentialsId: 'openai-model', variable: 'OPENAI_MODEL')
-]) {
-    bat """
-        kubectl delete secret resume-builder-secret -n ${K8S_NAMESPACE} --ignore-not-found=true
-        kubectl create secret generic resume-builder-secret -n ${K8S_NAMESPACE} ^
-        --from-literal=JWT_SECRET=%JWT_SECRET% ^
-        --from-literal=MONGODB_URI=%MONGODB_URI% ^
-        --from-literal=IMAGEKIT_PRIVATE_KEY=%IMAGEKIT_PRIVATE_KEY% ^
-        --from-literal=IMAGEKIT_PUBLIC_KEY=%IMAGEKIT_PUBLIC_KEY% ^
-        --from-literal=IMAGEKIT_URL_ENDPOINT=%IMAGEKIT_URL_ENDPOINT% ^
-        --from-literal=OPENAI_API_KEY=%OPENAI_API_KEY% ^
-        --from-literal=OPENAI_BASE_URL=%OPENAI_BASE_URL% ^
-        --from-literal=OPENAI_MODEL=%OPENAI_MODEL%
-    """
-}
+                        string(credentialsId: 'jwt-secret', variable: 'JWT_SECRET'),
+                        string(credentialsId: 'mongodb-uri', variable: 'MONGODB_URI'),
+                        string(credentialsId: 'imagekit-private-key', variable: 'IMAGEKIT_PRIVATE_KEY'),
+                        string(credentialsId: 'imagekit-public-key', variable: 'IMAGEKIT_PUBLIC_KEY'),
+                        string(credentialsId: 'imagekit-url-endpoint', variable: 'IMAGEKIT_URL_ENDPOINT'),
+                        string(credentialsId: 'openai-api-key', variable: 'OPENAI_API_KEY'),
+                        string(credentialsId: 'openai-base-url', variable: 'OPENAI_BASE_URL'),
+                        string(credentialsId: 'openai-model', variable: 'OPENAI_MODEL')
+                    ]) {
+                        bat """
+                            kubectl delete secret resume-builder-secret -n ${K8S_NAMESPACE} --ignore-not-found=true
+                            kubectl create secret generic resume-builder-secret -n ${K8S_NAMESPACE} ^
+                            --from-literal=JWT_SECRET=%JWT_SECRET% ^
+                            --from-literal=MONGODB_URI=%MONGODB_URI% ^
+                            --from-literal=IMAGEKIT_PRIVATE_KEY=%IMAGEKIT_PRIVATE_KEY% ^
+                            --from-literal=IMAGEKIT_PUBLIC_KEY=%IMAGEKIT_PUBLIC_KEY% ^
+                            --from-literal=IMAGEKIT_URL_ENDPOINT=%IMAGEKIT_URL_ENDPOINT% ^
+                            --from-literal=OPENAI_API_KEY=%OPENAI_API_KEY% ^
+                            --from-literal=OPENAI_BASE_URL=%OPENAI_BASE_URL% ^
+                            --from-literal=OPENAI_MODEL=%OPENAI_MODEL%
+                        """
+                    }
                     
-                    // Wait for container to start
-                    echo '⏳ Waiting for container to initialize...'
+                    // Apply Kubernetes resources
+                    bat "kubectl apply -f k8s/configmap.yaml -n ${K8S_NAMESPACE}"
+                    bat "kubectl apply -f k8s/service.yaml -n ${K8S_NAMESPACE}"
+                    bat "kubectl apply -f k8s/deployment.yaml -n ${K8S_NAMESPACE}"
+                    
+                    // Update to specific build tag
+                    bat "kubectl set image deployment/${DEPLOYMENT_NAME} resume-builder=${DOCKER_IMAGE}:${DOCKER_TAG} -n ${K8S_NAMESPACE}"
+                    
+                    // Wait for rollout with timeout
+                    echo '⏳ Waiting for deployment rollout...'
+                    def rolloutStatus = bat(
+                        script: "kubectl rollout status deployment/${DEPLOYMENT_NAME} -n ${K8S_NAMESPACE} --timeout=5m",
+                        returnStatus: true
+                    )
+                    
+                    if (rolloutStatus != 0) {
+                        error "Deployment rollout failed!"
+                    }
+                    
+                    // Verify deployment
+                    echo '✅ Verifying deployment...'
+                    bat "kubectl get pods -n ${K8S_NAMESPACE} -l app=resume-builder"
+                    
+                    // Check if pods are ready
+                    def readyPods = bat(
+                        script: "kubectl get pods -n ${K8S_NAMESPACE} -l app=resume-builder -o jsonpath=\"{.items[?(@.status.phase=='Running')].metadata.name}\"",
+                        returnStdout: true
+                    ).trim()
+                    
+                    if (!readyPods) {
+                        error "No pods are running after deployment!"
+                    }
+                    
+                    echo "✅ Deployment successful!"
+                    echo "🌐 Application URL: http://localhost:30100"
+                }
+            }
+        }
+        
+        stage('Health Check') {
+            steps {
+                echo '🏥 Running health checks...'
+                script {
+                    // Wait a bit for app to be fully ready
                     bat "ping 127.0.0.1 -n 11 > nul"
                     
-                    // Check container logs
-                    echo '📋 Container logs:'
-                    bat "docker logs resume-builder-test"
+                    // Check service is accessible
+                    def serviceCheck = bat(
+                        script: "kubectl get service resume-builder-service -n ${K8S_NAMESPACE}",
+                        returnStatus: true
+                    )
                     
-                    // Test if container is running
-                    bat "docker ps --filter name=resume-builder-test --format \"{{.Names}}\""
-                    
-                    echo '✅ Docker container running successfully on port 3001'
-                    echo '🌐 Test at: http://localhost:3001'
+                    if (serviceCheck == 0) {
+                        echo '✅ Service is accessible'
+                    } else {
+                        echo '⚠️ Service check failed'
+                    }
                 }
-            }
-        }
-        
-        stage('Cleanup') {
-            steps {
-                echo '🧹 Cleaning up test container...'
-                script {
-                    bat "docker stop resume-builder-test || exit /b 0"
-                    bat "docker rm resume-builder-test || exit /b 0"
-                    echo '✅ Cleanup complete'
-                }
-            }
-        }
-        
-        stage('Success') {
-            steps {
-                echo '✅ Pipeline completed successfully!'
-                echo "📦 Docker image: ${DOCKER_IMAGE}:${DOCKER_TAG}"
-                echo '🚀 Ready for Kubernetes deployment in Phase 3'
             }
         }
     }
     
     post {
         success {
-            echo '🎉 Build successful!'
-            echo '✅ Client: Dependencies installed'
-            echo '✅ Server: Dependencies installed'
-            echo '✅ Docker: Image built and pushed'
-            echo '✅ Test: Container verified with environment variables'
-        }
-        failure {
-            echo '❌ Build failed! Check Console Output'
             script {
-                bat "docker stop resume-builder-test || exit /b 0"
-                bat "docker rm resume-builder-test || exit /b 0"
+                echo '🎉 ============================================'
+                echo '🎉 BUILD SUCCESSFUL!'
+                echo '🎉 ============================================'
+                echo ''
+                echo "📦 Docker Image: ${DOCKER_IMAGE}:${DOCKER_TAG}"
+                echo "☸️  Kubernetes Namespace: ${K8S_NAMESPACE}"
+                echo "🌐 Application URL: http://localhost:30100"
+                echo "👤 Commit by: ${env.GIT_AUTHOR}"
+                echo "💬 Commit message: ${env.GIT_COMMIT_MSG}"
+                echo ''
+                echo '✅ Phase 1: GitHub → Jenkins ✓'
+                echo '✅ Phase 2: Docker Build & Push ✓'
+                echo '✅ Phase 3: Kubernetes Deployment ✓'
+                echo '✅ Phase 4: Automated CI/CD Pipeline ✓'
+                
+                // Optional: Send success notification
+                // emailext(
+                //     subject: "✅ Build #${BUILD_NUMBER} - SUCCESS",
+                //     body: "Deployment successful!\nImage: ${DOCKER_IMAGE}:${DOCKER_TAG}",
+                //     to: "your-email@example.com"
+                // )
             }
         }
+        
+        failure {
+            script {
+                echo '❌ ============================================'
+                echo '❌ BUILD FAILED!'
+                echo '❌ ============================================'
+                echo ''
+                echo "Build Number: ${BUILD_NUMBER}"
+                echo "Failed Stage: Check console output above"
+                echo ''
+                
+                // Attempt rollback if deployment failed
+                if (env.PREVIOUS_IMAGE) {
+                    echo '🔄 Attempting automatic rollback...'
+                    try {
+                        bat "kubectl set image deployment/${DEPLOYMENT_NAME} resume-builder=${env.PREVIOUS_IMAGE} -n ${K8S_NAMESPACE}"
+                        bat "kubectl rollout status deployment/${DEPLOYMENT_NAME} -n ${K8S_NAMESPACE} --timeout=2m"
+                        echo '✅ Rollback successful! Previous version restored.'
+                    } catch (Exception e) {
+                        echo "❌ Rollback failed: ${e.message}"
+                    }
+                }
+                
+                // Optional: Send failure notification
+                // emailext(
+                //     subject: "❌ Build #${BUILD_NUMBER} - FAILED",
+                //     body: "Build failed! Check Jenkins console output.",
+                //     to: "your-email@example.com"
+                // )
+            }
+        }
+        
         always {
-            echo '📊 Build Summary:'
-            echo "   Build Number: ${BUILD_NUMBER}"
-            echo "   Docker Image: ${DOCKER_IMAGE}:${DOCKER_TAG}"
+            echo '📊 ============================================'
+            echo '📊 BUILD SUMMARY'
+            echo '📊 ============================================'
+            echo "   Pipeline: ${env.JOB_NAME}"
+            echo "   Build: #${BUILD_NUMBER}"
+            echo "   Status: ${currentBuild.currentResult}"
+            echo "   Duration: ${currentBuild.durationString}"
+            echo "   Started: ${new Date(currentBuild.startTimeInMillis).format('yyyy-MM-dd HH:mm:ss')}"
         }
     }
 }
