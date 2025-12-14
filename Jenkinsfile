@@ -96,26 +96,28 @@ pipeline {
                     
                     // Run container with ALL environment variables
                     withCredentials([
-                        string(credentialsId: 'jwt-secret', variable: 'JWT_SECRET'),
-                        string(credentialsId: 'mongodb-uri', variable: 'MONGODB_URI'),
-                        string(credentialsId: 'imagekit-private-key', variable: 'IMAGEKIT_PRIVATE_KEY'),
-                        string(credentialsId: 'openai-api-key', variable: 'OPENAI_API_KEY'),
-                        string(credentialsId: 'openai-base-url', variable: 'OPENAI_BASE_URL'),
-                        string(credentialsId: 'openai-model', variable: 'OPENAI_MODEL')
-                    ]) {
-                        bat """
-                            docker run -d --name resume-builder-test -p 3001:3000 ^
-                            -e JWT_SECRET=%JWT_SECRET% ^
-                            -e MONGODB_URI=%MONGODB_URI% ^
-                            -e IMAGEKIT_PRIVATE_KEY=%IMAGEKIT_PRIVATE_KEY% ^
-                            -e OPENAI_API_KEY=%OPENAI_API_KEY% ^
-                            -e OPENAI_BASE_URL=%OPENAI_BASE_URL% ^
-                            -e OPENAI_MODEL=%OPENAI_MODEL% ^
-                            -e PORT=3000 ^
-                            -e NODE_ENV=production ^
-                            ${DOCKER_IMAGE}:${DOCKER_TAG}
-                        """
-                    }
+    string(credentialsId: 'jwt-secret', variable: 'JWT_SECRET'),
+    string(credentialsId: 'mongodb-uri', variable: 'MONGODB_URI'),
+    string(credentialsId: 'imagekit-private-key', variable: 'IMAGEKIT_PRIVATE_KEY'),
+    string(credentialsId: 'imagekit-public-key', variable: 'IMAGEKIT_PUBLIC_KEY'),  // ADD
+    string(credentialsId: 'imagekit-url-endpoint', variable: 'IMAGEKIT_URL_ENDPOINT'),  // ADD
+    string(credentialsId: 'openai-api-key', variable: 'OPENAI_API_KEY'),
+    string(credentialsId: 'openai-base-url', variable: 'OPENAI_BASE_URL'),
+    string(credentialsId: 'openai-model', variable: 'OPENAI_MODEL')
+]) {
+    bat """
+        kubectl delete secret resume-builder-secret -n ${K8S_NAMESPACE} --ignore-not-found=true
+        kubectl create secret generic resume-builder-secret -n ${K8S_NAMESPACE} ^
+        --from-literal=JWT_SECRET=%JWT_SECRET% ^
+        --from-literal=MONGODB_URI=%MONGODB_URI% ^
+        --from-literal=IMAGEKIT_PRIVATE_KEY=%IMAGEKIT_PRIVATE_KEY% ^
+        --from-literal=IMAGEKIT_PUBLIC_KEY=%IMAGEKIT_PUBLIC_KEY% ^
+        --from-literal=IMAGEKIT_URL_ENDPOINT=%IMAGEKIT_URL_ENDPOINT% ^
+        --from-literal=OPENAI_API_KEY=%OPENAI_API_KEY% ^
+        --from-literal=OPENAI_BASE_URL=%OPENAI_BASE_URL% ^
+        --from-literal=OPENAI_MODEL=%OPENAI_MODEL%
+    """
+}
                     
                     // Wait for container to start
                     echo '⏳ Waiting for container to initialize...'
